@@ -1,8 +1,11 @@
 import { useState, useEffect } from "react";
-import { db, storage } from "../firebase/config";
+import { db } from "../firebase/config";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useAuth } from "../context/AuthContext";
+import axios from "axios";
+
+const CLOUD_NAME = "dpcshviz6";
+const UPLOAD_PRESET = "dog360_unsigned";
 
 const Profile = () => {
   const { user } = useAuth();
@@ -14,14 +17,15 @@ const Profile = () => {
     color: "",
   });
 
-  const defaultImage = null;
-  const [profileImage, setProfileImage] = useState(defaultImage);
-  const [selectedImage, setSelectedImage] = useState(null);
+  const [profileImage, setProfileImage] = useState("");
   const [hover, setHover] = useState(false);
+  const [isEditing, setIsEditing] = useState(true);
+  const [selectedImage, setSelectedImage] = useState(null);
 
   useEffect(() => {
     const fetchProfile = async () => {
       if (!user) return;
+
       const docRef = doc(db, "dogProfiles", user.uid);
       const docSnap = await getDoc(docRef);
 
@@ -33,9 +37,8 @@ const Profile = () => {
           breed: data.breed || "",
           color: data.color || "",
         });
-        if (data.imageUrl) {
-          setProfileImage(data.imageUrl);
-        }
+        setProfileImage(data.imageUrl || "");
+        setIsEditing(false);
       }
     };
 
@@ -46,16 +49,31 @@ const Profile = () => {
     setProfileData({ ...profileData, [e.target.name]: e.target.value });
   };
 
-  const handleImageChange = (e) => {
+  const handleImageChange = async (e) => {
     const file = e.target.files[0];
-    if (file) {
-      setSelectedImage(file);
-      setProfileImage(URL.createObjectURL(file));
+    if (!file) return;
+
+    setSelectedImage(URL.createObjectURL(file));
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", UPLOAD_PRESET);
+
+    try {
+      const res = await axios.post(
+        `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
+        formData
+      );
+      const imageUrl = res.data.secure_url;
+      setProfileImage(imageUrl);
+    } catch (err) {
+      console.error("Cloudinary upload error:", err);
+      alert("❌ Image upload failed. Try again.");
     }
   };
 
   const handleDeleteImage = () => {
-    setProfileImage(defaultImage);
+    setProfileImage("");
     setSelectedImage(null);
   };
 
@@ -64,134 +82,83 @@ const Profile = () => {
     if (!user) return;
 
     try {
-      let imageUrl = profileImage;
-
-      if (selectedImage) {
-        const imageRef = ref(storage, `profileImages/${user.uid}`);
-        await uploadBytes(imageRef, selectedImage);
-        imageUrl = await getDownloadURL(imageRef);
-      }
-
       await setDoc(doc(db, "dogProfiles", user.uid), {
         ...profileData,
-        imageUrl,
+        imageUrl: profileImage,
       });
-
-      alert("✅ Profile updated and saved!");
+      alert("✅ Profile saved successfully!");
+      setIsEditing(false);
     } catch (err) {
-      console.error("Error saving profile:", err);
-      alert("❌ Error saving profile. Please try again.");
+      console.error("Save error:", err);
+      alert("❌ Error saving profile.");
     }
   };
 
   return (
-    <div
-      className="relative flex flex-col items-center justify-center min-h-screen bg-cover bg-center p-6"
-      style={{ backgroundImage: "url('/profile-background.jpg')" }}
-    >
-      <div className="absolute inset-0 bg-black bg-opacity-20 backdrop-blur-sm"></div>
-
-      <div className="relative w-full max-w-3xl bg-white bg-opacity-85 p-8 rounded-2xl shadow-xl flex flex-col items-center backdrop-blur-md">
+    <div className="relative min-h-screen flex flex-col items-center justify-center bg-cover bg-center p-6" style={{ backgroundImage: "url('/profile-background.jpg')" }}>
+      <div className="absolute inset-0 bg-black bg-opacity-20 backdrop-blur-sm" />
+      <div className="relative w-full max-w-3xl bg-white bg-opacity-90 p-8 rounded-2xl shadow-xl z-10 text-center">
         <div
-          className="relative w-44 h-44 rounded-full border-4 border-rose-300 shadow-md flex items-center justify-center overflow-hidden"
+          className="relative w-40 h-40 rounded-full border-4 border-rose-400 shadow-md mx-auto overflow-hidden"
           onMouseEnter={() => setHover(true)}
           onMouseLeave={() => setHover(false)}
-          style={{ backgroundColor: profileImage ? "transparent" : "#d1d5db" }}
         >
           {profileImage ? (
-            <img
-              src={profileImage}
-              alt="Profile Photo"
-              className="w-full h-full object-cover"
-            />
+            <img src={profileImage} alt="Profile" className="w-full h-full object-cover" />
           ) : (
-            <span className="text-gray-500 font-semibold">No Photo</span>
+            <div className="w-full h-full flex items-center justify-center text-gray-500">No Photo</div>
           )}
 
           {hover && (
-            <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center gap-3">
-              <label className="bg-white text-gray-700 px-3 py-1 rounded-lg cursor-pointer text-sm font-semibold shadow-md hover:bg-gray-200 transition">
-                Edit Photo
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleImageChange}
-                />
+            <div className="absolute inset-0 bg-black bg-opacity-50 flex justify-center items-center gap-3">
+              <label className="text-white bg-white text-sm px-3 py-1 rounded cursor-pointer hover:bg-gray-200">
+                Edit
+                <input type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
               </label>
-
-              <button
-                onClick={handleDeleteImage}
-                className="bg-red-500 text-white px-3 py-1 rounded-lg text-sm font-semibold shadow-md hover:bg-red-600 transition"
-              >
-                Delete
-              </button>
+              {profileImage && (
+                <button onClick={handleDeleteImage} className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700">
+                  Delete
+                </button>
+              )}
             </div>
           )}
         </div>
 
-        <form onSubmit={handleSubmit} className="mt-6 w-full px-4">
-          <div className="bg-rose-100 p-6 rounded-xl shadow-md">
-            <div className="mb-4">
-              <label className="text-gray-700 font-semibold">Name:</label>
-              <input
-                type="text"
-                name="name"
-                placeholder="Enter dog's name"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring focus:ring-rose-300 mt-1"
-                value={profileData.name}
-                onChange={handleChange}
-                required
-              />
-            </div>
-
-            <div className="mb-4">
-              <label className="text-gray-700 font-semibold">Age:</label>
-              <input
-                type="number"
-                name="age"
-                placeholder="Enter dog's age"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring focus:ring-rose-300 mt-1"
-                value={profileData.age}
-                onChange={handleChange}
-                required
-              />
-            </div>
-
-            <div className="mb-4">
-              <label className="text-gray-700 font-semibold">Breed:</label>
-              <input
-                type="text"
-                name="breed"
-                placeholder="Enter dog's breed"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring focus:ring-rose-300 mt-1"
-                value={profileData.breed}
-                onChange={handleChange}
-                required
-              />
-            </div>
-
-            <div className="mb-6">
-              <label className="text-gray-700 font-semibold">Color:</label>
-              <input
-                type="text"
-                name="color"
-                placeholder="Enter dog's color"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring focus:ring-rose-300 mt-1"
-                value={profileData.color}
-                onChange={handleChange}
-                required
-              />
-            </div>
-
-            <button
-              type="submit"
-              className="w-full bg-rose-500 hover:bg-rose-600 text-white py-2 rounded-lg transition duration-200 font-semibold"
-            >
+        {isEditing ? (
+          <form onSubmit={handleSubmit} className="mt-6 space-y-4 text-left">
+            {Object.entries(profileData).map(([field, value]) => (
+              <div key={field}>
+                <label className="block text-sm font-semibold text-gray-700 capitalize mb-1" htmlFor={field}>
+                  {field}
+                </label>
+                <input
+                  id={field}
+                  name={field}
+                  type={field === "age" ? "number" : "text"}
+                  value={value}
+                  onChange={handleChange}
+                  autoComplete="off"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-300"
+                  placeholder={`Enter dog's ${field}`}
+                  required
+                />
+              </div>
+            ))}
+            <button type="submit" className="w-full bg-rose-500 text-white py-2 rounded-lg hover:bg-rose-600 transition font-semibold">
               Save Profile
             </button>
+          </form>
+        ) : (
+          <div className="mt-6 bg-rose-50 p-6 rounded-xl shadow-md text-left space-y-3">
+            <p><strong>Name:</strong> {profileData.name}</p>
+            <p><strong>Age:</strong> {profileData.age}</p>
+            <p><strong>Breed:</strong> {profileData.breed}</p>
+            <p><strong>Color:</strong> {profileData.color}</p>
+            <button onClick={() => setIsEditing(true)} className="mt-4 bg-rose-500 text-white px-6 py-2 rounded-lg hover:bg-rose-600 font-semibold">
+              Edit Profile
+            </button>
           </div>
-        </form>
+        )}
       </div>
     </div>
   );

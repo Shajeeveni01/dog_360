@@ -8,27 +8,48 @@ const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  const [message, setMessage] = useState(""); // Success/Error message
+  const [isError, setIsError] = useState(false);
+
   const handleLogin = async (e) => {
     e.preventDefault();
+    setMessage(""); // Clear any previous messages
+
     try {
       await login(email, password);
-      navigate("/");
+      setIsError(false);
+      setMessage("🎉 Login successful!");
+
+      setTimeout(() => {
+        navigate("/"); // Redirect to homepage after message
+      }, 1500);
     } catch (error) {
-      alert("Login failed: " + error.message);
+      setIsError(true);
+      setMessage("❌ Login failed: " + error.message);
     }
   };
 
   return (
-    <div
-      className="relative flex flex-col items-center justify-center min-h-screen p-6"
-      style={{ background: "linear-gradient(to bottom right, #fddede, #ffb6b9)" }}
-    >
+    <div className="relative flex flex-col items-center justify-center min-h-screen p-6 bg-gradient-to-br from-rose-100 to-amber-100">
       <div className="relative flex bg-white bg-opacity-90 rounded-2xl shadow-2xl overflow-hidden w-full max-w-4xl z-10">
         
-        {/* Left: Login Form */}
+        {/* Left Section */}
         <div className="w-full md:w-1/2 p-8 flex flex-col justify-center">
           <h2 className="text-3xl font-bold text-gray-700 text-center">Welcome Back! 🐶</h2>
           <p className="text-gray-500 text-center mb-6">Log in to continue</p>
+
+          {/* Message Box */}
+          {message && (
+            <div
+              className={`mb-4 text-center px-4 py-2 rounded-lg font-semibold shadow-sm transition-all duration-300 ${
+                isError
+                  ? "bg-red-100 text-red-700 border border-red-300"
+                  : "bg-green-100 text-green-700 border border-green-300"
+              }`}
+            >
+              {message}
+            </div>
+          )}
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
@@ -57,7 +78,7 @@ const Login = () => {
 
             <button
               type="submit"
-              className="w-full bg-rose-500 hover:bg-rose-600 text-white py-2 rounded-lg transition duration-200"
+              className="w-full bg-rose-500 hover:bg-rose-600 text-white py-2 rounded-lg transition duration-200 font-semibold"
             >
               Login
             </button>
@@ -65,7 +86,7 @@ const Login = () => {
 
           <div className="mt-4 text-center">
             <p className="text-gray-500">
-              Don't have an account?{" "}
+              Don’t have an account?{" "}
               <Link to="/signup" className="text-rose-600 font-semibold hover:underline">
                 Register here
               </Link>
@@ -73,7 +94,7 @@ const Login = () => {
           </div>
         </div>
 
-        {/* Right: Image */}
+        {/* Right Section */}
         <div className="hidden md:flex w-1/2 bg-gradient-to-br from-rose-200 to-amber-100 items-center justify-center">
           <img
             src="/dog-login.jpg"

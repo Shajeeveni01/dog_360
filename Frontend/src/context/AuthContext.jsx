@@ -10,7 +10,10 @@ import { auth } from "../firebase/config";
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    const storedUser = localStorage.getItem("dog360_user");
+    return storedUser ? JSON.parse(storedUser) : null;
+  });
 
   const login = (email, password) => {
     return signInWithEmailAndPassword(auth, email, password);
@@ -21,13 +24,20 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
+    localStorage.removeItem("dog360_user");
     return signOut(auth);
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      if (currentUser) {
+        localStorage.setItem("dog360_user", JSON.stringify(currentUser));
+      } else {
+        localStorage.removeItem("dog360_user");
+      }
     });
+
     return () => unsubscribe();
   }, []);
 

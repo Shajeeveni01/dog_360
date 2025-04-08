@@ -7,11 +7,14 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 
 // ✅ Proper CORS config to allow all localhost ports during development
+const cors = require("cors");
+
 app.use(cors({
-  origin: ["http://localhost:5173", "http://localhost:5174"], // include both ports
+  origin: "*", // temporarily allow all origins for testing
   methods: ["GET", "POST"],
-  credentials: true,
+  allowedHeaders: ["Content-Type"],
 }));
+
 
 app.use(express.json());
 

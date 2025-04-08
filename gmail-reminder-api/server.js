@@ -6,10 +6,11 @@ require("dotenv").config();
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-// ✅ Setup CORS to allow frontend URL
+// ✅ Proper CORS config to allow all localhost ports during development
 app.use(cors({
-  origin: ["http://localhost:5173", "http://localhost:5174"], // allow both dev ports
+  origin: ["http://localhost:5173", "http://localhost:5174"], // include both ports
   methods: ["GET", "POST"],
+  credentials: true,
 }));
 
 app.use(express.json());

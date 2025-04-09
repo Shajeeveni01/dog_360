@@ -12,7 +12,7 @@ class_labels = [
     'Bacterial_Infection', 'Conjunctival_Injection_or_Redness', 'Demodicosis', 'Dermatitis',
     'Fungal_Infection', 'Healthy', 'Hypersensitivity', 'Keratosis', 'Malassezia',
     'Nasal_Discharge', 'Ocular_Discharge', 'Pyoderma', 'Skin_Lesions', 'flea_allergy',
-    'hotspot', 'mange', 'ringworm'
+    'hotspot', 'ringworm'
 ]
 
 def predict_dog_disease(img_path):

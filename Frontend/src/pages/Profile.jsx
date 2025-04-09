@@ -5,7 +5,8 @@ import { useAuth } from "../context/AuthContext";
 import axios from "axios";
 
 const CLOUD_NAME = "dpcshviz6";
-const UPLOAD_PRESET = "dog360_unsigned";
+const UPLOAD_PRESET = "unsigned_preset"; // ✅ must match your Cloudinary setting
+
 
 const Profile = () => {
   const { user } = useAuth();

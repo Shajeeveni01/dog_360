@@ -1,146 +1,218 @@
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
-import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
-import DatePicker from "react-datepicker";
-import { v4 as uuidv4 } from "uuid";
-import "react-datepicker/dist/react-datepicker.css";
+import timeGridPlugin from "@fullcalendar/timegrid";
+import { db } from "../firebase/config";
+import {
+  collection,
+  addDoc,
+  getDocs,
+  query,
+  orderBy,
+  deleteDoc,
+  updateDoc,
+  doc,
+  where
+} from "firebase/firestore";
+import { format } from "date-fns";
+import Swal from "sweetalert2";
+import { useAuth } from "../context/AuthContext";
 
 const Reminders = () => {
+  const { user } = useAuth();
+  const [reminderId, setReminderId] = useState(null);
+  const [email, setEmail] = useState(user?.email || "");
+  const [title, setTitle] = useState("");
+  const [date, setDate] = useState("");
+  const [category, setCategory] = useState("Doctor Appointment");
   const [events, setEvents] = useState([]);
-  const [selectedEvent, setSelectedEvent] = useState(null);
-  const [newEvent, setNewEvent] = useState({
-    title: "",
-    date: new Date(),
-    type: "Vaccination",
-  });
 
-  const handleAddEvent = () => {
-    if (newEvent.title.trim() === "") {
-      alert("Please enter an event title!");
-      return;
+  const fetchReminders = async () => {
+    const q = query(collection(db, "reminders"), where("user", "==", user?.email));
+    const snapshot = await getDocs(q);
+    const fetched = snapshot.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        title: `${data.category}: ${data.title}`,
+        start: data.date,
+      };
+    });
+    setEvents(fetched);
+  };
+
+  useEffect(() => {
+    if (user?.email) {
+      setEmail(user.email);
+      fetchReminders();
+    }
+  }, [user]);
+
+  const showToast = (msg, icon = "success") => {
+    Swal.fire({
+      toast: true,
+      icon,
+      title: msg,
+      position: "top-end",
+      showConfirmButton: false,
+      timer: 2500,
+      timerProgressBar: true,
+    });
+  };
+
+  const handleAddReminder = async () => {
+    if (!email || !title || !date || !category) {
+      return showToast("All fields are required!", "error");
     }
 
-    setEvents([
-      ...events,
-      { id: uuidv4(), title: `${newEvent.type}: ${newEvent.title}`, start: newEvent.date },
-    ]);
+    const reminder = {
+      user: email,
+      title,
+      date,
+      category,
+      timestamp: new Date(),
+    };
 
-    setNewEvent({ title: "", date: new Date(), type: "Vaccination" });
-  };
+    try {
+      const docRef = await addDoc(collection(db, "reminders"), reminder);
 
-  const handleUpdateEvent = () => {
-    if (!selectedEvent) return;
-    setEvents(
-      events.map((event) =>
-        event.id === selectedEvent.id
-          ? { ...event, title: `${newEvent.type}: ${newEvent.title}`, start: newEvent.date }
-          : event
-      )
-    );
-    setSelectedEvent(null);
-    setNewEvent({ title: "", date: new Date(), type: "Vaccination" });
-  };
-
-  const handleDeleteEvent = () => {
-    if (!selectedEvent) return;
-    setEvents(events.filter((event) => event.id !== selectedEvent.id));
-    setSelectedEvent(null);
-    setNewEvent({ title: "", date: new Date(), type: "Vaccination" });
-  };
-
-  const handleEventClick = (clickInfo) => {
-    const selected = events.find((event) => event.id === clickInfo.event.id);
-    if (selected) {
-      setSelectedEvent(selected);
-      setNewEvent({
-        title: selected.title.replace(/^(Vaccination|Doctor Appointment|Grooming|Medication): /, ""),
-        date: new Date(selected.start),
-        type: selected.title.split(":")[0],
+      await fetch("https://gmail-reminder-api-production.up.railway.app/send-reminder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: email,
+          subject: "Dog360 - Pet Reminder",
+          text: `This is a reminder for your ${category.toLowerCase()}: ${title} on ${new Date(date).toLocaleString()}`
+        }),
       });
+
+      showToast("Reminder added & email sent!");
+      setTitle("");
+      setDate("");
+      setCategory("Doctor Appointment");
+      fetchReminders();
+    } catch (err) {
+      console.error(err);
+      showToast("Error adding reminder", "error");
     }
   };
 
-  const handleEventDrop = (eventDropInfo) => {
-    setEvents(
-      events.map((event) =>
-        event.id === eventDropInfo.event.id
-          ? { ...event, start: eventDropInfo.event.start }
-          : event
-      )
-    );
+  const handleDeleteReminder = async () => {
+    if (!reminderId) return;
+    await deleteDoc(doc(db, "reminders", reminderId));
+    setReminderId(null);
+    setTitle("");
+    setDate("");
+    setCategory("Doctor Appointment");
+    showToast("Reminder deleted!");
+    fetchReminders();
+  };
+
+  const handleUpdateReminder = async () => {
+    if (!reminderId) return;
+    await updateDoc(doc(db, "reminders", reminderId), {
+      title,
+      date,
+      category,
+    });
+    setReminderId(null);
+    setTitle("");
+    setDate("");
+    setCategory("Doctor Appointment");
+    showToast("Reminder updated!");
+    fetchReminders();
+  };
+
+  const handleEventClick = ({ event }) => {
+    const selected = events.find((e) => e.title === event.title && e.start === event.startStr);
+    if (selected) {
+      const cleanTitle = selected.title.split(": ")[1];
+      setReminderId(selected.id);
+      setTitle(cleanTitle);
+      setCategory(selected.title.split(": ")[0]);
+      setDate(format(new Date(selected.start), "yyyy-MM-dd'T'HH:mm"));
+    }
   };
 
   return (
-    <div className="min-h-screen bg-rose-50 flex flex-col items-center py-10 px-4">
-      <h2 className="text-3xl font-bold text-gray-800 mb-6">📅 Pet Reminders</h2>
+    <div className="min-h-screen bg-pink-100 text-center px-4 py-8">
+      <h2 className="text-3xl font-bold mb-6 flex items-center justify-center gap-2">
+        📅 Pet Reminders
+      </h2>
 
-      <div className="bg-white p-6 rounded-lg shadow-md w-full max-w-md mb-6">
-        <h3 className="text-xl font-semibold text-gray-700">
-          {selectedEvent ? "Update Reminder" : "Add New Reminder"}
+      <div className="max-w-md mx-auto bg-white p-6 rounded-xl shadow-md mb-8">
+        <h3 className="text-xl font-semibold mb-4 text-gray-700">
+          {reminderId ? "Update Reminder" : "Add New Reminder"}
         </h3>
+
+        <input
+          type="email"
+          value={email}
+          disabled
+          className="mb-3 w-full p-2 border rounded-md text-gray-500 bg-gray-100"
+        />
         <input
           type="text"
-          placeholder="Enter reminder (e.g., Vet Visit)"
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg mt-2"
-          value={newEvent.title}
-          onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })}
+          placeholder="Reminder Title"
+          className="mb-3 w-full p-2 border rounded-md"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
         />
-        <DatePicker
-          selected={newEvent.date}
-          onChange={(date) => setNewEvent({ ...newEvent, date })}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg mt-2"
+        <input
+          type="datetime-local"
+          className="mb-3 w-full p-2 border rounded-md"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
         />
         <select
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg mt-2"
-          value={newEvent.type}
-          onChange={(e) => setNewEvent({ ...newEvent, type: e.target.value })}
+          className="mb-4 w-full p-2 border rounded-md"
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
         >
-          <option value="Vaccination">Vaccination</option>
-          <option value="Doctor Appointment">Doctor Appointment</option>
-          <option value="Grooming">Grooming</option>
-          <option value="Medication">Medication</option>
+          <option>Doctor Appointment</option>
+          <option>Vaccination</option>
+          <option>Medication</option>
+          <option>Grooming</option>
         </select>
-        {selectedEvent ? (
+
+        {reminderId ? (
           <>
             <button
-              onClick={handleUpdateEvent}
-              className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg mt-3 transition"
+              onClick={handleUpdateReminder}
+              className="bg-blue-500 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-600 w-full mb-2"
             >
               Update Reminder
             </button>
             <button
-              onClick={handleDeleteEvent}
-              className="w-full bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg mt-3 transition"
+              onClick={handleDeleteReminder}
+              className="bg-red-500 text-white px-6 py-2 rounded-lg font-semibold hover:bg-red-600 w-full"
             >
               Delete Reminder
             </button>
           </>
         ) : (
           <button
-            onClick={handleAddEvent}
-            className="w-full bg-rose-500 hover:bg-rose-600 text-white py-2 rounded-lg mt-3 transition"
+            onClick={handleAddReminder}
+            className="bg-rose-500 text-white px-6 py-2 rounded-lg font-semibold hover:bg-rose-600 w-full"
           >
-            Add Reminder
+            Add Reminder + Email
           </button>
         )}
       </div>
 
-      <div className="w-full max-w-4xl bg-white p-6 rounded-lg shadow-md">
+      <div className="bg-white p-4 rounded-xl shadow-md max-w-4xl mx-auto">
         <FullCalendar
-          plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+          plugins={[dayGridPlugin, interactionPlugin, timeGridPlugin]}
           initialView="dayGridMonth"
           headerToolbar={{
-            left: "prev,next today",
+            left: "prev today next",
             center: "title",
             right: "dayGridMonth,timeGridWeek,timeGridDay",
           }}
           events={events}
-          editable
-          selectable
+          height="auto"
           eventClick={handleEventClick}
-          eventDrop={handleEventDrop}
         />
       </div>
     </div>

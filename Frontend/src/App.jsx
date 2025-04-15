@@ -4,6 +4,7 @@ import PrivateRoute from "./components/PrivateRoute";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
+// Pages
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
@@ -18,7 +19,7 @@ function App() {
   return (
     <>
       {/* Toast Notifications */}
-      <ToastContainer position="top-center" autoClose={2500} />
+      <ToastContainer position="top-center" autoClose={2500} theme="colored" newestOnTop />
 
       <Routes>
         {/* Public Routes */}

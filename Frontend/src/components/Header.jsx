@@ -88,8 +88,8 @@ const Header = () => {
             </>
           ) : (
             <>
-              <Link to="/upload" className={getLinkClass("/upload")}>Skin Detection</Link>
-              <Link to="/blood-report" className={getLinkClass("/blood-report")}>Blood Analysis</Link>
+              <Link to="/upload" className={getLinkClass("/upload")}>Skin Disease </Link>
+              <Link to="/blood-report" className={getLinkClass("/blood-report")}>Blood Report </Link>
               <Link to="/reminders" className={getLinkClass("/reminders")}>Reminders</Link>
               <Link to="/health-records" className={getLinkClass("/health-records")}>Health Records</Link>
               <Link to="/profile" className={getLinkClass("/profile")}>Profile</Link>

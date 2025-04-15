@@ -6,6 +6,7 @@ import {
   addDoc,
   deleteDoc,
   getDocs,
+  updateDoc,
   query,
   where,
   Timestamp,
@@ -13,7 +14,6 @@ import {
 } from "firebase/firestore";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "react-toastify";
-import { FaPrint } from "react-icons/fa";
 import "react-toastify/dist/ReactToastify.css";
 
 const HealthRecords = () => {
@@ -42,10 +42,18 @@ const HealthRecords = () => {
     if (user) fetchRecords();
   }, [user]);
 
-  const handleFileChange = (e) => setFile(e.target.files[0]);
+  const handleFileChange = (e) => {
+    const selected = e.target.files[0];
+    if (selected && !["image/jpeg", "image/jpg", "image/png"].includes(selected.type)) {
+      toast.error("Only JPG, JPEG, or PNG formats are allowed.");
+      fileInputRef.current.value = "";
+      return;
+    }
+    setFile(selected);
+  };
 
   const handleUpload = async () => {
-    if (!file) return toast.error("Please select a file!");
+    if (!file) return toast.error("Please select a valid image file!");
 
     toast.info("Uploading file...");
 
@@ -54,7 +62,7 @@ const HealthRecords = () => {
     formData.append("upload_preset", UPLOAD_PRESET);
 
     try {
-      const res = await axios.post(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`, formData);
+      const res = await axios.post(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, formData);
       const fileURL = res.data.secure_url;
 
       const docRef = await addDoc(collection(db, "healthRecords"), {
@@ -90,12 +98,24 @@ const HealthRecords = () => {
     toast.success("Record deleted.");
   };
 
-  const handlePrint = (url) => {
-    const win = window.open(url, "_blank");
-    win.onload = () => {
-      win.focus();
-      win.print();
-    };
+  const handleRename = async (record) => {
+    const newName = prompt("Enter new file name:", record.fileName);
+    if (!newName || newName.trim() === "") return;
+
+    try {
+      const docRef = doc(db, "healthRecords", record.id);
+      await updateDoc(docRef, { fileName: newName });
+
+      setRecords((prev) =>
+        prev.map((r) =>
+          r.id === record.id ? { ...r, fileName: newName } : r
+        )
+      );
+      toast.success("File renamed!");
+    } catch (err) {
+      console.error("Rename failed:", err);
+      toast.error("Failed to rename file.");
+    }
   };
 
   const toggleShowMore = (cat) => {
@@ -114,13 +134,16 @@ const HealthRecords = () => {
         <h3 className="text-xl font-semibold text-gray-700">Upload Health Record</h3>
         <input
           type="file"
-          accept=".jpg,.png,.pdf"
+          accept=".jpg,.jpeg,.png"
           onChange={handleFileChange}
           ref={fileInputRef}
           className="w-full mt-2"
         />
+        <p className="text-xs text-gray-500 mt-1 italic">
+          Only JPG, JPEG, or PNG formats are supported.
+        </p>
         <select
-          className="w-full px-4 py-2 border rounded-lg mt-2"
+          className="w-full px-4 py-2 border rounded-lg mt-3"
           value={category}
           onChange={(e) => setCategory(e.target.value)}
         >
@@ -157,28 +180,30 @@ const HealthRecords = () => {
                       {visibleRecords.map((r) => (
                         <li key={r.id} className="flex justify-between items-center mb-2">
                           <div className="flex items-center space-x-4">
+                            <span className="text-gray-800">{r.fileName}</span>
                             <a
                               href={r.url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-blue-500 hover:underline"
+                              className="text-blue-500 hover:underline text-sm"
                             >
-                              {r.fileName}
+                              Preview
                             </a>
+                          </div>
+                          <div className="flex items-center space-x-2">
                             <button
-                              onClick={() => handlePrint(r.url)}
-                              className="flex items-center gap-1 text-gray-600 hover:text-rose-600"
+                              onClick={() => handleRename(r)}
+                              className="bg-yellow-500 text-white px-3 py-1 rounded-md"
                             >
-                              <FaPrint />
-                              <span className="text-sm">Print</span>
+                              Rename
+                            </button>
+                            <button
+                              onClick={() => handleDelete(r)}
+                              className="bg-red-500 text-white px-3 py-1 rounded-md"
+                            >
+                              Delete
                             </button>
                           </div>
-                          <button
-                            onClick={() => handleDelete(r)}
-                            className="bg-red-500 text-white px-3 py-1 rounded-md"
-                          >
-                            Delete
-                          </button>
                         </li>
                       ))}
                     </ul>

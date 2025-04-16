@@ -2,4 +2,5 @@ API/__pycache__
 API/venv/
 Model/venv/
 Frontend/node_modules
-Model/dog_disease_dataset
+Model/dog_disease_dataset.DS_Store
+.DS_Store

@@ -1,6 +1,6 @@
 import tensorflow as tf
 from sklearn.utils.class_weight import compute_class_weight
-from sklearn.metrics import f1_score
+from sklearn.metrics import f1_score, confusion_matrix, ConfusionMatrixDisplay, classification_report
 import numpy as np
 import matplotlib.pyplot as plt
 from tensorflow.keras.applications import MobileNetV2
@@ -8,6 +8,7 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Dense, GlobalAveragePooling2D
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import ReduceLROnPlateau, ModelCheckpoint, EarlyStopping, Callback
+import pickle
 
 IMG_SIZE = 224
 BATCH_SIZE = 32
@@ -52,7 +53,8 @@ val_generator = train_datagen.flow_from_directory(
     target_size=(IMG_SIZE, IMG_SIZE),
     batch_size=BATCH_SIZE,
     class_mode='categorical',
-    subset='validation'
+    subset='validation',
+    shuffle=False  # Important for matching indices
 )
 
 # Compute class weights
@@ -90,7 +92,7 @@ early_stop = EarlyStopping(monitor='val_accuracy', patience=5, restore_best_weig
 lr_scheduler = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=2, verbose=1)
 f1_callback = F1ScoreCallback(val_generator)
 
-# Train the model with class weights
+# Train the model
 history = model.fit(
     train_generator,
     epochs=EPOCHS,
@@ -102,7 +104,9 @@ history = model.fit(
 model.save('dog_disease_model.keras')
 print("🎉 Training Complete! Model saved as 'dog_disease_model.keras'")
 
-# Plot training & validation accuracy
+# ----------------------- PLOTS -----------------------
+
+# Accuracy Curve
 plt.figure(figsize=(10, 5))
 plt.plot(history.history['accuracy'], label='Train Accuracy')
 plt.plot(history.history['val_accuracy'], label='Val Accuracy')
@@ -115,7 +119,7 @@ plt.tight_layout()
 plt.savefig("accuracy_curve.png")
 plt.show()
 
-# Plot training & validation loss
+# Loss Curve
 plt.figure(figsize=(10, 5))
 plt.plot(history.history['loss'], label='Train Loss')
 plt.plot(history.history['val_loss'], label='Val Loss')
@@ -128,7 +132,7 @@ plt.tight_layout()
 plt.savefig("loss_curve.png")
 plt.show()
 
-# Plot F1-score over epochs
+# F1-Score Curve
 plt.figure(figsize=(10, 5))
 plt.plot(f1_callback.f1_scores, label='Val F1-Score', color='purple')
 plt.title('Weighted F1-Score Over Epochs')
@@ -139,3 +143,44 @@ plt.grid(True)
 plt.tight_layout()
 plt.savefig("f1_score_curve.png")
 plt.show()
+
+# Confusion Matrix
+val_preds = model.predict(val_generator)
+y_true = val_generator.classes
+y_pred = val_preds.argmax(axis=1)
+
+cm = confusion_matrix(y_true, y_pred)
+disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=list(val_generator.class_indices.keys()))
+plt.figure(figsize=(10, 8))
+disp.plot(cmap='Blues', values_format='d')
+plt.title("Confusion Matrix - Validation Set")
+plt.savefig("confusion_matrix.png")
+plt.show()
+
+# Classification Report
+report = classification_report(y_true, y_pred, target_names=list(val_generator.class_indices.keys()))
+print("Classification Report:\n", report)
+with open("classification_report.txt", "w") as f:
+    f.write(report)
+
+# Learning Rate Curve (static value used across all epochs if ReduceLROnPlateau doesn’t log dynamically)
+lrs = [1e-5] * len(history.history['loss'])  # Update this if learning rate changed
+plt.figure(figsize=(10, 5))
+plt.plot(range(1, len(lrs) + 1), lrs, label='Learning Rate')
+plt.xlabel('Epoch')
+plt.ylabel('Learning Rate')
+plt.title('Learning Rate Over Epochs')
+plt.grid(True)
+plt.tight_layout()
+plt.savefig("learning_rate_curve.png")
+plt.show()
+
+# Save training history
+with open("training_history.pkl", "wb") as f:
+    pickle.dump(history.history, f)
+
+# Save F1 scores
+with open("f1_scores.pkl", "wb") as f:
+    pickle.dump(f1_callback.f1_scores, f)
+
+print("✅ training_history.pkl and f1_scores.pkl saved successfully!")
